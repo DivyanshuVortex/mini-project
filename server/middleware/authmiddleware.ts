@@ -1,21 +1,29 @@
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 
-export const authmiddleware = (req : Request, res : Response, next : NextFunction) => {
-    const authHeader = req.headers.authorization || req.cookies.token;
-    if (!authHeader) {
-        return res.status(401).json({ message: "Unauthorized" });
-    }
-    const token = authHeader.split(" ")[1];
-    if (!token || token !== "your_secret_token") {
-        return res.status(403).json({ message: "Forbidden" });
+const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
+
+export interface AuthRequest extends Request {
+  user?: { id: string; email: string };
+}
+
+export const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    //header Ya cookies
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : req.cookies?.token;
+
+    if (!token) {
+      return res.status(401).json({ message: "Unauthorized: No token provided" });
     }
 
-    try {
-        const decoded = jwt.verify(token, "your_jwt_secret");
-        req.user = decoded;
-        next();
-    } catch (error) {
-        return res.status(403).json({ message: "Forbidden" });
-    }
+    // Verify token
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email: string };
+
+    req.user = decoded;
+  } catch (error) {
+    return res.status(403).json({ message: "Forbidden: Invalid token" });
+  }
 };
