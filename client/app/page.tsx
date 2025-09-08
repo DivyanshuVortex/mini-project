@@ -1,10 +1,18 @@
+"use client";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import NavBar from "./components/NavBar";
 
 export default function HomePage() {
+  const [token, setToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    setToken(localStorage.getItem("token"));
+  }, []);
+
   return (
     <main className="min-h-screen flex flex-col bg-white">
-     <NavBar />
+      <NavBar />
       <section className="flex-1 flex flex-col items-center justify-center bg-gradient-to-r from-indigo-100 to-purple-100 text-center p-6">
         <h2 className="text-4xl font-bold mb-3 text-gray-800">
           Welcome to MyShop
@@ -13,12 +21,22 @@ export default function HomePage() {
           Discover amazing products at unbeatable prices. Shop now and enjoy
           exclusive deals tailored just for you!
         </p>
-        <button className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold shadow hover:bg-indigo-700 transition">
-          <Link href={"/lists"}>Start Shopping</Link>
-        </button>
+
+        <Link
+          href="/lists"
+          className="m-2 bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold shadow hover:bg-indigo-700 transition"
+        >
+          Start Shopping
+        </Link>
+
+        <Link
+          href={token ? "/product" : "/signin"}
+          className="m-2 bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold shadow hover:bg-indigo-700 transition"
+        >
+          Product Management (Protected)
+        </Link>
       </section>
 
-      
       <footer className="bg-gray-900 text-gray-300 text-center p-4">
         <p>© 2025 MyShop. All rights reserved.</p>
       </footer>

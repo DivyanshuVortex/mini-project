@@ -10,12 +10,12 @@ router.post("/signup", signup);
 router.post("/signin", signin);
 
 
-router.post("/products", authMiddleware, additem);
-router.get("/products", authMiddleware, getitems);
-router.delete("/products/:id", authMiddleware, deleteitem);
-router.put("/products/:id", authMiddleware, updateitem);
+router.post("/products",additem);
+router.get("/products", getitems);
+router.delete("/products/:id", deleteitem);
+router.put("/products/:id",  updateitem);
 
 
 router.post('/addcart', authMiddleware , addtocart );
-router.get('/carditems', authMiddleware , getcartitems)
+router.get('/cartitems', authMiddleware , getcartitems)
 export default router;

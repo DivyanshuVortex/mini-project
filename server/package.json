@@ -7,7 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
     "dev": "ts-node-dev --respawn --transpile-only server.ts",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "seed" : "ts-node prisma/seed.ts"
   },
   "keywords": [],
   "author": "",
@@ -19,7 +20,8 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
-    "prisma": "^6.15.0"
+    "prisma": "^6.15.0",
+    "zod": "^4.1.5"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
