@@ -1,82 +1,169 @@
 "use client";
-import React, { useState, useEffect } from "react";
+
+import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-const API_URL = process.env.NEXT_PUBLIC_BE_URL;
+const API_URL = process.env.NEXT_PUBLIC_BE_URL ?? "";
 
-const Page = () => {
+interface Product {
+  id: string;
+  name: string;
+  category?: string | null;
+  price: number;
+  img?: string | null;
+}
+
+interface FormState {
+  name: string;
+  category: string;
+  price: string; // keep as string for input control
+}
+
+const Page: React.FC = () => {
   const router = useRouter();
-  const [products, setProducts] = useState<any[]>([]);
-  const [form, setForm] = useState({ name: "", category: "", price: "" });
+  const [products, setProducts] = useState<Product[]>([]);
+  const [form, setForm] = useState<FormState>({ name: "", category: "", price: "" });
   const [updateId, setUpdateId] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>("All");
   const [filterPrice, setFilterPrice] = useState<number>(0);
   const [sortOrder, setSortOrder] = useState<string>("default");
+  const [token, setToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("token") : null;
-
-  const fetchProducts = async () => {
-    const res = await fetch(`${API_URL}/products`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    });
-    const data = await res.json();
-    setProducts(data.products || []);
-  };
-
+  // Load token on client only
   useEffect(() => {
-    if (token) fetchProducts();
+    const stored = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    console.debug("Loaded token:", stored);
+    setToken(stored);
+  }, []);
+
+  // fetchProducts as useCallback so handlers can call it without lint warnings
+  const fetchProducts = useCallback(async (): Promise<void> => {
+    if (!token) {
+      setProducts([]);
+      setLoading(false);
+      console.debug("No token: skipping product fetch");
+      return;
+    }
+    if (!API_URL) {
+      console.error("NEXT_PUBLIC_BE_URL not defined");
+      setProducts([]);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_URL}/api/products`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch products (${res.status})`);
+      }
+
+      const data = await res.json();
+      // backend might return { products: [...] } or [] directly
+      const normalized: Product[] = Array.isArray(data)
+        ? (data as Product[])
+        : Array.isArray((data as { products?: Product[] }).products)
+        ? (data as { products?: Product[] }).products!
+        : [];
+
+      setProducts(normalized);
+    } catch (err) {
+      console.error("Error fetching products:", err);
+      setProducts([]);
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // call fetchProducts when token changes
+  useEffect(() => {
+    void fetchProducts();
+  }, [fetchProducts]);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const payload = { ...form, price: Number(form.price) };
-    if (updateId) {
-      await fetch(`${API_URL}/products/${updateId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-      setUpdateId(null);
-    } else {
-      await fetch(`${API_URL}/products`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ prod: payload }),
-      });
+
+    if (!token) {
+      console.warn("No token; cannot submit");
+      return;
     }
-    setForm({ name: "", category: "", price: "" });
-    fetchProducts();
+    if (!API_URL) {
+      console.error("NEXT_PUBLIC_BE_URL missing");
+      return;
+    }
+
+    const payload = { name: form.name, category: form.category, price: Number(form.price) };
+
+    try {
+      if (updateId) {
+        const res = await fetch(`${API_URL}/api/products/${updateId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error(`Failed to update product (${res.status})`);
+        setUpdateId(null);
+      } else {
+        const res = await fetch(`${API_URL}/api/products`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ prod: payload }),
+        });
+        if (!res.ok) throw new Error(`Failed to create product (${res.status})`);
+      }
+
+      // reset form and refresh list
+      setForm({ name: "", category: "", price: "" });
+      await fetchProducts();
+    } catch (err) {
+      console.error("Error submitting product:", err);
+    }
   };
 
   const handleDelete = async (id: string) => {
-    await fetch(`${API_URL}/products/${id}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    fetchProducts();
+    if (!token) {
+      console.warn("No token; cannot delete");
+      return;
+    }
+    if (!API_URL) {
+      console.error("NEXT_PUBLIC_BE_URL missing");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/api/products/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`Failed to delete product (${res.status})`);
+      await fetchProducts();
+    } catch (err) {
+      console.error("Error deleting product:", err);
+    }
   };
 
-  const handleEdit = (p: any) => {
-    setForm({ name: p.name, category: p.category, price: String(p.price) });
+  const handleEdit = (p: Product) => {
+    setForm({ name: p.name, category: p.category ?? "", price: String(p.price) });
     setUpdateId(p.id);
   };
 
-  const categories = ["All", ...new Set(products.map((p) => p.category))];
-
+  const categories = ["All", ...Array.from(new Set(products.map((p) => p.category ?? "Uncategorized")))];
   const filteredProducts = products
     .filter((p) => {
-      const categoryMatch =
-        filterCategory === "All" || p.category === filterCategory;
+      const categoryMatch = filterCategory === "All" || (p.category ?? "Uncategorized") === filterCategory;
       const priceMatch = filterPrice === 0 || p.price <= filterPrice;
       return categoryMatch && priceMatch;
     })
@@ -99,9 +186,7 @@ const Page = () => {
       </div>
 
       <div className="bg-white shadow rounded-lg p-6 mb-8">
-        <h2 className="text-xl font-semibold mb-4">
-          {updateId ? "Update Product" : "Add Product"}
-        </h2>
+        <h2 className="text-xl font-semibold mb-4">{updateId ? "Update Product" : "Add Product"}</h2>
         <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-3">
           <input
             type="text"
@@ -153,14 +238,12 @@ const Page = () => {
         </div>
 
         <div>
-          <label className="block font-medium mb-2">
-            Max Price: {filterPrice}
-          </label>
+          <label className="block font-medium mb-2">Max Price: {filterPrice}</label>
           <input
             type="range"
-            min="0"
-            max="10000"
-            step="50"
+            min={0}
+            max={10000}
+            step={50}
             value={filterPrice}
             onChange={(e) => setFilterPrice(Number(e.target.value))}
             className="w-64 accent-blue-600"
@@ -193,7 +276,9 @@ const Page = () => {
       </div>
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {filteredProducts.length > 0 ? (
+        {loading ? (
+          <p className="text-gray-500">Loading products...</p>
+        ) : filteredProducts.length > 0 ? (
           filteredProducts.map((p) => (
             <div
               key={p.id}
@@ -202,9 +287,7 @@ const Page = () => {
               <div>
                 <h3 className="text-xl font-bold">{p.name}</h3>
                 <p className="text-sm text-gray-500">{p.category}</p>
-                <p className="mt-2 text-lg font-semibold text-blue-700">
-                  ₹{p.price}
-                </p>
+                <p className="mt-2 text-lg font-semibold text-blue-700">₹{p.price}</p>
               </div>
               <div className="mt-4 flex gap-3">
                 <button

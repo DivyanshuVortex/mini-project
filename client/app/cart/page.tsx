@@ -1,59 +1,105 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-const BE = process.env.NEXT_PUBLIC_BE_URL;
-const CartPage = () => {
-  const [cart, setCart] = useState<any[]>([]);
+import React, { useEffect, useState } from "react";
+import Image from "next/image";
+
+const BE = process.env.NEXT_PUBLIC_BE_URL ?? "";
+
+interface BackendProduct {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  img?: string | null;
+}
+
+interface BackendCartItem {
+  id: string; // cart item id
+  cartId?: string;
+  productId?: string;
+  quantity: number;
+  product: BackendProduct;
+}
+
+interface BackendCartResponse {
+  items?: BackendCartItem[];
+  // sometimes backend might return the array directly
+  // so we'll also handle the case where the response is BackendCartItem[]
+}
+
+interface CartItem {
+  cartItemId: string;
+  id: string; // product id
+  name: string;
+  category: string;
+  price: number;
+  quantity: number;
+  img?: string | null;
+}
+
+const CartPage: React.FC = () => {
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
 
   // Load token on client
   useEffect(() => {
-    const storedToken = localStorage.getItem("token");
+    const storedToken = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     console.log("Loaded token:", storedToken);
     setToken(storedToken);
   }, []);
 
-  // Fetch cart items
+  // Fetch cart items when token available
   useEffect(() => {
     if (!token) {
       console.log("No token found, skipping fetchCart");
+      setLoading(false);
+      return;
+    }
+    if (!BE) {
+      console.error("Backend URL (NEXT_PUBLIC_BE_URL) is not defined");
+      setLoading(false);
       return;
     }
 
-    const fetchCart = async () => {
+    const fetchCart = async (): Promise<void> => {
       console.log("Fetching cart items...");
       try {
         const res = await fetch(`${BE}/api/cartitems`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
           },
         });
 
         if (!res.ok) throw new Error(`Failed to fetch cart, status: ${res.status}`);
-        const data = await res.json();
-        console.log("Backend response:", data);
+        const data = (await res.json()) as BackendCartResponse | BackendCartItem[];
+        console.log("Raw backend response:", data);
 
-        // Handle backend object structure { id, userId, items: [...] }
-        const cartArray = Array.isArray(data.items) ? data.items : [];
-        console.log("Cart array:", cartArray);
+        // Normalize response: support either { items: [...] } or [...] directly
+        const cartArray: BackendCartItem[] = Array.isArray(data)
+          ? data
+          : Array.isArray((data as BackendCartResponse).items)
+          ? (data as BackendCartResponse).items!
+          : [];
 
-        const mappedCart = cartArray.map((item: any) => ({
-          cartItemId: item.id,           // backend cart item id for delete
+        console.log("Normalized cart array:", cartArray);
+
+        const mappedCart: CartItem[] = cartArray.map((item) => ({
+          cartItemId: item.id,
           id: item.product.id,
           name: item.product.name,
           category: item.product.category,
           price: item.product.price,
           quantity: item.quantity,
-          img: item.product.img || "",
+          img: item.product.img ?? null,
         }));
 
-        console.log("Mapped cart:", mappedCart);
+        console.log("Mapped cart for frontend:", mappedCart);
         setCart(mappedCart);
-      } catch (error) {
-        console.error("Error fetching cart:", error);
+      } catch (err) {
+        console.error("Error fetching cart:", err);
         setCart([]);
       } finally {
         setLoading(false);
@@ -63,9 +109,13 @@ const CartPage = () => {
     fetchCart();
   }, [token]);
 
-  const removeFromCart = async (cartItemId: string) => {
+  const removeFromCart = async (cartItemId: string): Promise<void> => {
     if (!token) {
       console.log("No token, cannot remove item");
+      return;
+    }
+    if (!BE) {
+      console.error("Backend URL (NEXT_PUBLIC_BE_URL) is not defined");
       return;
     }
 
@@ -75,16 +125,15 @@ const CartPage = () => {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
       if (!res.ok) throw new Error(`Failed to remove item, status: ${res.status}`);
       console.log("Item removed successfully:", cartItemId);
-
       setCart((prev) => prev.filter((item) => item.cartItemId !== cartItemId));
-    } catch (error) {
-      console.error("Error removing cart item:", error);
+    } catch (err) {
+      console.error("Error removing cart item:", err);
     }
   };
 
@@ -108,12 +157,20 @@ const CartPage = () => {
                 className="flex flex-col bg-white p-5 pb-50 rounded-xl shadow-md hover:shadow-xl transition transform hover:-translate-y-1"
               >
                 <div className="h-44 bg-gray-100 flex items-center justify-center rounded-lg mb-4 overflow-hidden">
-                  {item.img ? <img src={item.img} alt={item.name} /> : <span className="text-gray-400">Image</span>}
+                  <Image
+                    src={item.img ?? "/placeholder.png"}
+                    alt={item.name}
+                    width={176}
+                    height={176}
+                    style={{ objectFit: "contain" }}
+                  />
                 </div>
+
                 <h2 className="font-semibold text-lg text-black">{item.name}</h2>
                 <p className="text-gray-700 mb-1">{item.category}</p>
                 <p className="text-gray-700 mb-2">Quantity: {item.quantity}</p>
                 <p className="font-bold text-black text-lg mb-3">₹{item.price}</p>
+
                 <button
                   className="bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition"
                   onClick={() => removeFromCart(item.cartItemId)}
