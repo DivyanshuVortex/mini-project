@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-const API_URL = "http://localhost:4000/api";
+const API_URL = process.env.NEXT_PUBLIC_BE_URL;
 
 const Page = () => {
   const router = useRouter();

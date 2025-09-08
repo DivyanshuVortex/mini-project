@@ -2,7 +2,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-const API_URL = "http://localhost:4000/api";
+const API_URL = process.env.NEXT_PUBLIC_BE_URL;
+
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<any[]>([]);

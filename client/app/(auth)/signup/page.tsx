@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation"; // Next.js 13+ app router
+import { useRouter } from "next/navigation";
+const BE = process.env.NEXT_PUBLIC_BE_URL;
 
 export default function SignUp() {
   const [formData, setFormData] = useState({
@@ -20,7 +21,7 @@ export default function SignUp() {
     setMessage("");
 
     try {
-      const res = await fetch("http://localhost:4000/api/signup", {
+      const res = await fetch(`${BE}/api/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),

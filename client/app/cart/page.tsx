@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-
+const BE = process.env.NEXT_PUBLIC_BE_URL;
 const CartPage = () => {
   const [cart, setCart] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,7 +24,7 @@ const CartPage = () => {
     const fetchCart = async () => {
       console.log("Fetching cart items...");
       try {
-        const res = await fetch("http://localhost:4000/api/cartitems", {
+        const res = await fetch(`${BE}/api/cartitems`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -71,7 +71,7 @@ const CartPage = () => {
 
     console.log("Removing cart item:", cartItemId);
     try {
-      const res = await fetch(`http://localhost:4000/api/cart/${cartItemId}`, {
+      const res = await fetch(`${BE}/api/cart/${cartItemId}`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
