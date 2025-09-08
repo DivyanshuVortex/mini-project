@@ -2,7 +2,7 @@ import { Router } from "express";
 import { additem, getitems, deleteitem, updateitem } from "../controllers/basicFunctions";
 import { signin, signup } from "../controllers/authFunction";
 import { authMiddleware } from "../middleware/authmiddleware";
-import { addtocart , getcartitems } from "../controllers/cartFunction";
+import { addtocart , getcartitems , removeFromCart } from "../controllers/cartFunction";
 const router = Router();
 
 
@@ -17,5 +17,6 @@ router.put("/products/:id",  updateitem);
 
 
 router.post('/addcart', authMiddleware , addtocart );
-router.get('/cartitems', authMiddleware , getcartitems)
+router.get('/cartitems',authMiddleware, getcartitems);
+router.delete("/cart/:id", authMiddleware, removeFromCart);
 export default router;

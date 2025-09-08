@@ -1,17 +1,20 @@
 import { Request, Response } from "express";
-import {prisma} from "../prisma/prisma"
+import { prisma } from "../prisma/prisma";
+import { AuthRequest } from "../middleware/authmiddleware"; 
 
 // --- ADD TO CART ---
-export const addtocart = async (req: Request, res: Response) => {
+export const addtocart = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = (req as any).user.id; // from authmiddleware
+    const userId = req.user?.id; // No need for `as any`
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized: User not authenticated" });
+    }
     const { productId, quantity } = req.body;
 
     if (!productId || !quantity) {
       return res.status(400).json({ message: "Product ID and quantity are required" });
     }
 
-    // Ensure user has a cart (create one if not)
     let cart = await prisma.cart.findFirst({ where: { userId } });
     if (!cart) {
       cart = await prisma.cart.create({
@@ -19,19 +22,16 @@ export const addtocart = async (req: Request, res: Response) => {
       });
     }
 
-    // Check if product already exists in the cart
     const existingItem = await prisma.cartItem.findFirst({
       where: { cartId: cart.id, productId },
     });
 
     if (existingItem) {
-      // Update quantity
       await prisma.cartItem.update({
         where: { id: existingItem.id },
         data: { quantity: existingItem.quantity + quantity },
       });
     } else {
-      // Add new item
       await prisma.cartItem.create({
         data: { cartId: cart.id, productId, quantity },
       });
@@ -44,26 +44,61 @@ export const addtocart = async (req: Request, res: Response) => {
 };
 
 // --- GET CART ITEMS ---
-export const getcartitems = async (req: Request, res: Response) => {
+export const getcartitems = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized: User not authenticated" });
+    }
 
     const cart = await prisma.cart.findFirst({
       where: { userId },
       include: {
         items: {
           include: {
-            product: true, // fetch full product details
+            product: true,
           },
         },
       },
     });
 
     if (!cart) {
-      return res.status(200).json({ items: [] }); // empty cart
+      return res.status(200).json({ items: [] });
+    }
+    console.log(cart.items)
+    return res.status(200).json({ items: cart.items });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error", error });
+  }
+};
+
+// --- REMOVE ITEM FROM CART ---
+export const removeFromCart = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized: User not authenticated" });
     }
 
-    return res.status(200).json({ items: cart.items });
+    const { id } = req.params; // cart item ID to remove
+    if (!id) {
+      return res.status(400).json({ message: "Cart item ID is required" });
+    }
+
+    // Check if the item exists in user's cart
+    const cartItem = await prisma.cartItem.findFirst({
+      where: { id, cart: { userId } }, // ensures user owns the cart
+    });
+
+    if (!cartItem) {
+      return res.status(404).json({ message: "Cart item not found" });
+    }
+
+    await prisma.cartItem.delete({
+      where: { id },
+    });
+
+    return res.status(200).json({ message: "Item removed from cart" });
   } catch (error) {
     return res.status(500).json({ message: "Server error", error });
   }
